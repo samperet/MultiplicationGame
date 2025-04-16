@@ -1,7 +1,7 @@
 const p1Keys = ['a', 's', 'd'];
 const p2Keys = ['j', 'k', 'l'];
-let p1 = { name: '', avatar: '', score: 0 };
-let p2 = { name: '', avatar: '', score: 0 };
+let p1 = { avatar: '', score: 0 };
+let p2 = { avatar: '', score: 0 };
 let maxQuestions = 20;
 let correctIndex = 0;
 let answered = false;
@@ -230,8 +230,8 @@ const emojiChoices = [
 ];
 let setupStep = 1;
 let tempPlayers = [
-  {name: '', avatar: ''},
-  {name: '', avatar: ''}
+  {avatar: ''},
+  {avatar: ''}
 ];
 function showPlayerSetup(step) {
   document.getElementById('setup-step-player').classList.remove('hidden');
@@ -242,9 +242,7 @@ function showPlayerSetup(step) {
   const grid = document.getElementById('emoji-grid');
   const selectedArea = document.getElementById('selected-emoji-area');
   const selectedEmoji = document.getElementById('selected-emoji');
-  const nameInput = document.getElementById('player-name-input');
   const confirmBtn = document.getElementById('confirm-player-btn');
-  const warning = document.getElementById('emoji-name-warning');
   label.textContent = `Player ${step}: Choose your character`;
   grid.innerHTML = '';
   let used = step === 2 ? [tempPlayers[0].avatar] : [];
@@ -259,24 +257,10 @@ function showPlayerSetup(step) {
       selectedEmoji.textContent = e;
       selectedArea.classList.remove('hidden');
       grid.classList.add('hidden');
-      nameInput.value = '';
-      warning.classList.add('hidden');
       confirmBtn.textContent = (step === 1) ? 'Next' : 'Start';
-      confirmBtn.disabled = true;
-      // Enable button only when name is entered
-      nameInput.oninput = () => {
-        confirmBtn.disabled = nameInput.value.trim().length === 0;
-        warning.classList.add('hidden');
-      };
+      confirmBtn.disabled = false;
       confirmBtn.onclick = () => {
-        const name = nameInput.value.trim();
-        if (!name) {
-          warning.textContent = 'Please enter a name.';
-          warning.classList.remove('hidden');
-          nameInput.focus();
-          return;
-        }
-        tempPlayers[step-1] = {name, avatar: e};
+        tempPlayers[step-1] = {avatar: e};
         selectedArea.classList.add('hidden');
         grid.classList.remove('hidden');
         if (step === 1) {
@@ -285,7 +269,6 @@ function showPlayerSetup(step) {
           showKeysInstructions();
         }
       };
-      setTimeout(() => nameInput.focus(), 50);
     };
     grid.appendChild(btn);
   });
@@ -433,9 +416,10 @@ function simulateKeyPress(key) {
     highlightAnswerOption(answerOption);
     
     // Update feedback text
-    const playerNum = ['a', 's', 'd'].includes(key) ? 'Player 1' : 'Player 2';
-    const answerText = document.querySelector(`#answer-option-${answerOption}`).textContent.trim();
-    document.getElementById('key-test-feedback').textContent = `${playerNum} selected ${answerText} using the ${key.toUpperCase()} key`;
+    const val = document.querySelector(`#answer-option-${answerOption}`).textContent.trim();
+    document.getElementById('keyTestFeedback').textContent = `${val}`;
+    document.getElementById('keyTestFeedback').classList.remove('text-green-600', 'text-red-600');
+    document.getElementById('keyTestFeedback').classList.add('text-blue-600');
   }
 }
 
@@ -623,16 +607,13 @@ function endGame() {
   let winnerName, winnerEmoji, winningPlayer;
   
   if (p1.score > p2.score) {
-    winnerName = p1.name;
     winnerEmoji = p1.avatar;
     winningPlayer = 1;
   } else if (p2.score > p1.score) {
-    winnerName = p2.name;
     winnerEmoji = p2.avatar;
     winningPlayer = 2;
   } else {
     // It's a tie
-    winnerName = "It's a tie!";
     winnerEmoji = "🤝";
     winningPlayer = 0;
   }
@@ -645,7 +626,7 @@ function endGame() {
   const winnerText = document.getElementById('winner-text');
   const winnerEmojiElement = document.getElementById('winner-emoji');
   
-  winnerText.textContent = winningPlayer ? `${winnerName} WINS!` : winnerName;
+  winnerText.textContent = winningPlayer ? "WINNER!" : "It's a tie!";
   winnerEmojiElement.textContent = winnerEmoji;
   // Reset bouncing-emoji animation
   winnerEmojiElement.classList.remove('bouncing-emoji');
@@ -687,7 +668,7 @@ function endGame() {
       // Only reset scores and round length; keep names and avatars
       p1.score = 0;
       p2.score = 0;
-      maxQuestions = parseInt(document.getElementById('num-questions').value, 10) || 20;
+      maxQuestions = 20;
       document.getElementById('p1-score-top').textContent = p1.score;
       document.getElementById('p2-score-top').textContent = p2.score;
       moveCharacters();
