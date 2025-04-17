@@ -36,20 +36,23 @@ function generateProblem() {
     choices.push(wrong);
   }
   choices = shuffle(choices);
-  correctIndex = choices.indexOf(correct);
+  const correctIndex = choices.indexOf(correct);
   return {
     question: `${a} × ${b} = ?`,
-    choices
+    choices,
+    correctIndex
   };
 }
 
+// Store current problem state globally
+let currentProblem = null;
 function displayProblem() {
   answered = false;
-  const { question, choices } = generateProblem();
-  document.getElementById('problem').textContent = question;
+  currentProblem = generateProblem();
+  document.getElementById('problem').textContent = currentProblem.question;
   const choicesDiv = document.getElementById('choices');
   choicesDiv.innerHTML = '';
-  choices.forEach((choice, idx) => {
+  currentProblem.choices.forEach((choice, idx) => {
     const btn = document.createElement('button');
     btn.className = 'px-8 py-5 bg-yellow-200 rounded-xl font-bold text-2xl shadow-md hover:bg-yellow-300 transition cursor-pointer w-full max-w-xs mx-auto my-1';
     btn.textContent = choice;
@@ -60,11 +63,59 @@ function displayProblem() {
   document.getElementById('message').textContent = '';
 }
 
+
 // --- Global audio references ---
 let isMuted = false;
-let bgMusic; // Make bgMusic global so it can be accessed by start-game-btn
+let bgMusic;
+let musicState = 'intro'; // 'intro' or 'boss'
+
+function playMusic(forceBoss = false) {
+  if (!bgMusic) return;
+  if (forceBoss || musicState === 'boss') {
+    if (bgMusic.src.indexOf('video-game-boss-fiight-259885.mp3') === -1) {
+      bgMusic.pause();
+      bgMusic.currentTime = 0;
+      bgMusic.src = 'video-game-boss-fiight-259885.mp3';
+      bgMusic.load();
+    }
+    musicState = 'boss';
+  } else {
+    if (bgMusic.src.indexOf('save-as-115826.mp3') === -1) {
+      bgMusic.pause();
+      bgMusic.currentTime = 0;
+      bgMusic.src = 'save-as-115826.mp3';
+      bgMusic.load();
+    }
+    musicState = 'intro';
+  }
+  bgMusic.muted = isMuted;
+  bgMusic.volume = 0.7;
+  bgMusic.loop = true;
+  bgMusic.play().catch(() => {
+    const tryPlay = () => {
+      bgMusic.play().catch(()=>{});
+      document.removeEventListener('click', tryPlay);
+      document.removeEventListener('keydown', tryPlay);
+    };
+    document.addEventListener('click', tryPlay, { once: true });
+    document.addEventListener('keydown', tryPlay, { once: true });
+  });
+}
 
 window.addEventListener('DOMContentLoaded', () => {
+  // --- Randomize title screen emojis ---
+  function pickTwoRandomEmojis(arr) {
+    const shuffled = arr.slice().sort(() => Math.random() - 0.5);
+    return [shuffled[0], shuffled[1]];
+  }
+  const [emoji1, emoji2] = pickTwoRandomEmojis(emojiChoices);
+  const tigerDiv = document.getElementById('draggable-tiger');
+  const unicornDiv = document.getElementById('draggable-unicorn');
+  if (tigerDiv && unicornDiv) {
+    tigerDiv.textContent = emoji1;
+    unicornDiv.textContent = emoji2;
+  }
+
   // --- Keyboard shortcut for Next/Continue/Start buttons ---
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' || e.key === 'Return') {
@@ -101,20 +152,8 @@ window.addEventListener('DOMContentLoaded', () => {
     muteIcon.textContent = isMuted ? '🔇' : '🔊';
   }
   if (bgMusic) {
-    // Try to play (some browsers require user gesture)
-    const playMusic = () => {
-      bgMusic.volume = 0.7;
-      bgMusic.play().catch(() => {});
-      document.removeEventListener('click', playMusic);
-      document.removeEventListener('keydown', playMusic);
-    };
-    // Attempt autoplay, fallback to user gesture
-    bgMusic.play().catch(() => {
-      document.addEventListener('click', playMusic);
-      document.addEventListener('keydown', playMusic);
-    });
+    playMusic(false);
   }
-
   // Start with instructions screen
   showInstructions();
 
@@ -126,8 +165,9 @@ window.addEventListener('DOMContentLoaded', () => {
   };
   // Next button for key instructions
   document.getElementById('keys-next-btn').onclick = () => {
-    showQuestionsSetup();
+    showPlayerSetup(1);
   };
+
   
   // --- Interactive key test for How to Play page ---
   setupKeyTest();
@@ -200,6 +240,9 @@ function playCountdownBeep(n) {
 }
 
 function startCountdown(cb) {
+  // Clear equation and choices before countdown
+  document.getElementById('problem').textContent = '';
+  document.getElementById('choices').innerHTML = '';
   const overlay = document.getElementById('countdown-overlay');
   const numSpan = document.getElementById('countdown-num');
   let count = 3;
@@ -228,6 +271,19 @@ function startCountdown(cb) {
 const emojiChoices = [
   '🐯','🦄','🐸','🐼','🐵','🦊','🐙','🐧','🐶','🦁'
 ];
+
+const emojiNames = {
+  '🐯': 'Tina Tiger',
+  '🦄': 'Uma Unicorn',
+  '🐸': 'Freddy Frog',
+  '🐼': 'Penny Panda',
+  '🐵': 'Milo Monkey',
+  '🦊': 'Fiona Fox',
+  '🐙': 'Olly Octopus',
+  '🐧': 'Percy Penguin',
+  '🐶': 'Daisy Dog',
+  '🦁': 'Leo Lion'
+};
 let setupStep = 1;
 let tempPlayers = [
   {avatar: ''},
@@ -237,12 +293,13 @@ function showPlayerSetup(step) {
   document.getElementById('setup-step-player').classList.remove('hidden');
   document.getElementById('setup-step-instructions').classList.add('hidden');
   document.getElementById('setup-step-keys').classList.add('hidden');
-  document.getElementById('setup-step-questions').classList.add('hidden');
   const label = document.getElementById('setup-player-label');
   const grid = document.getElementById('emoji-grid');
   const selectedArea = document.getElementById('selected-emoji-area');
   const selectedEmoji = document.getElementById('selected-emoji');
+  const selectedName = document.getElementById('selected-emoji-name');
   const confirmBtn = document.getElementById('confirm-player-btn');
+  const backBtn = document.getElementById('back-player-btn');
   label.textContent = `Player ${step}: Choose your character`;
   grid.innerHTML = '';
   let used = step === 2 ? [tempPlayers[0].avatar] : [];
@@ -255,10 +312,86 @@ function showPlayerSetup(step) {
     if (used.includes(e)) btn.disabled = true;
     btn.onclick = () => {
       selectedEmoji.textContent = e;
+      selectedName.textContent = emojiNames[e] || '';
       selectedArea.classList.remove('hidden');
       grid.classList.add('hidden');
       confirmBtn.textContent = (step === 1) ? 'Next' : 'Start';
       confirmBtn.disabled = false;
+
+      // --- Key Demo Setup ---
+      const keyDemoArea = document.getElementById('key-demo-area');
+      const keyDemoKeys = document.getElementById('key-demo-keys');
+      const keyDemoBtns = [
+        document.getElementById('key-demo-1'),
+        document.getElementById('key-demo-2'),
+        document.getElementById('key-demo-3')
+      ];
+      const keyDemoAnswerBtns = Array.from(selectedArea.querySelectorAll('.key-demo-answer'));
+      const keyDemoFeedback = document.getElementById('key-demo-feedback');
+      // Set key labels for player 1 or 2
+      const keys = (step === 1) ? ['A','S','D'] : ['J','K','L'];
+      keyDemoBtns.forEach((btn, i) => btn.textContent = keys[i]);
+      // Animate keys being pressed in sequence
+      function animateSequence() {
+        keyDemoBtns.forEach(btn => btn.classList.remove('pressed'));
+        let i = 0;
+        function pressNext() {
+          if (i >= keyDemoBtns.length) return;
+          keyDemoBtns[i].classList.add('pressed');
+          setTimeout(() => {
+            keyDemoBtns[i].classList.remove('pressed');
+            i++;
+            pressNext();
+          }, 200);
+        }
+        setTimeout(pressNext, 350);
+      }
+      animateSequence();
+      // Interactive: clicking key or answer animates and shows mapping
+      function showFeedback(idx) {
+        keyDemoFeedback.textContent = `"${keys[idx]}" = Answer ${idx+1}`;
+      }
+      keyDemoBtns.forEach((btn, idx) => {
+        btn.onclick = () => {
+          btn.classList.add('pressed');
+          setTimeout(() => btn.classList.remove('pressed'), 180);
+          showFeedback(idx);
+        };
+      });
+      keyDemoAnswerBtns.forEach((btn, idx) => {
+        btn.onclick = () => {
+          keyDemoBtns[idx].classList.add('pressed');
+          setTimeout(() => keyDemoBtns[idx].classList.remove('pressed'), 180);
+          showFeedback(idx);
+        };
+      });
+      keyDemoFeedback.textContent = '';
+      // Animate when actual keys are pressed
+      function keydownHandler(e) {
+        const key = e.key.toLowerCase();
+        let idx = -1;
+        if (step === 1) {
+          if (key === 'a') idx = 0;
+          else if (key === 's') idx = 1;
+          else if (key === 'd') idx = 2;
+        } else {
+          if (key === 'j') idx = 0;
+          else if (key === 'k') idx = 1;
+          else if (key === 'l') idx = 2;
+        }
+        if (idx !== -1) {
+          keyDemoBtns[idx].classList.add('pressed');
+          showFeedback(idx);
+          setTimeout(() => keyDemoBtns[idx].classList.remove('pressed'), 180);
+        }
+      }
+      document.addEventListener('keydown', keydownHandler);
+      // Remove handler when leaving this screen
+      backBtn.onclick = () => {
+        document.removeEventListener('keydown', keydownHandler);
+        selectedArea.classList.add('hidden');
+        grid.classList.remove('hidden');
+      };
       confirmBtn.onclick = () => {
         tempPlayers[step-1] = {avatar: e};
         selectedArea.classList.add('hidden');
@@ -266,21 +399,39 @@ function showPlayerSetup(step) {
         if (step === 1) {
           showPlayerSetup(2);
         } else {
-          showKeysInstructions();
+          // Start game immediately after both characters are picked
+          p1.avatar = tempPlayers[0].avatar;
+          p2.avatar = tempPlayers[1].avatar;
+          p1.score = 0;
+          p2.score = 0;
+          maxQuestions = 20;
+          document.getElementById('setup-screen').classList.add('hidden');
+          document.getElementById('game-area').classList.remove('hidden');
+          document.getElementById('p1-avatar').textContent = p1.avatar;
+          document.getElementById('p2-avatar').textContent = p2.avatar;
+          document.getElementById('p1-char').textContent = p1.avatar;
+          document.getElementById('p2-char').textContent = p2.avatar;
+          document.getElementById('p1-score-top').textContent = p1.score;
+          document.getElementById('p2-score-top').textContent = p2.score;
+          moveCharacters();
+          playMusic(true); // Switch to boss music and play
+          startCountdown(() => displayProblem());
         }
       };
     };
     grid.appendChild(btn);
-  });
+  }); // <-- CLOSE forEach HERE
+
   selectedArea.classList.add('hidden');
   grid.classList.remove('hidden');
 }
+
+
 
 function showInstructions() {
   document.getElementById('setup-step-instructions').classList.remove('hidden');
   document.getElementById('setup-step-player').classList.add('hidden');
   document.getElementById('setup-step-keys').classList.add('hidden');
-  document.getElementById('setup-step-questions').classList.add('hidden');
 }
 
 function showKeysInstructions() {
@@ -294,7 +445,7 @@ function showQuestionsSetup() {
   document.getElementById('setup-step-instructions').classList.add('hidden');
   document.getElementById('setup-step-player').classList.add('hidden');
   document.getElementById('setup-step-keys').classList.add('hidden');
-  document.getElementById('setup-step-questions').classList.remove('hidden');
+
 }
 
 // --- Draggable emoji functions ---
@@ -475,40 +626,36 @@ function highlightAnswerOption(optionNum) {
 }
 
 
-document.getElementById('start-game-btn').onclick = function() {
-  // Set player objects
-  p1.name = tempPlayers[0].name;
-  p2.name = tempPlayers[1].name;
-  p1.avatar = tempPlayers[0].avatar;
-  p2.avatar = tempPlayers[1].avatar;
-  p1.score = 0;
-  p2.score = 0;
-  maxQuestions = parseInt(document.getElementById('num-questions').value, 10) || 20;
-  // Update UI
-  document.getElementById('setup-screen').classList.add('hidden');
-  document.getElementById('game-area').classList.remove('hidden');
-  document.getElementById('p1-avatar').textContent = p1.avatar;
-  document.getElementById('p2-avatar').textContent = p2.avatar;
-  document.getElementById('p1-display').textContent = p1.name;
-  document.getElementById('p2-display').textContent = p2.name;
-  document.getElementById('p1-char').textContent = p1.avatar;
-  document.getElementById('p2-char').textContent = p2.avatar;
-  document.getElementById('p1-score-top').textContent = p1.score;
-  document.getElementById('p2-score-top').textContent = p2.score;
-  moveCharacters();
-  gameStarted = true;
-  // Switch to boss music when game starts
-  if (bgMusic) {
-    bgMusic.pause();
-    bgMusic.currentTime = 0;
-    bgMusic.src = 'video-game-boss-fiight-259885.mp3';
-    bgMusic.load();
-    bgMusic.muted = isMuted;
-    bgMusic.volume = 0.7;
-    bgMusic.play().catch(()=>{});
-  }
-  startCountdown(() => displayProblem());
+document.getElementById('p1-avatar').textContent = p1.avatar;
+document.getElementById('p2-avatar').textContent = p2.avatar;
+document.getElementById('p1-display').textContent = p1.name;
+document.getElementById('p2-display').textContent = p2.name;
+document.getElementById('p1-char').textContent = p1.avatar;
+document.getElementById('p2-char').textContent = p2.avatar;
+document.getElementById('p1-score-top').textContent = p1.score;
+document.getElementById('p2-score-top').textContent = p2.score;
+moveCharacters();
+gameStarted = true;
+// Switch to boss music when game starts
+if (bgMusic) {
+  bgMusic.pause();
+  bgMusic.currentTime = 0;
+  bgMusic.src = 'video-game-boss-fiight-259885.mp3';
+  bgMusic.load();
+  bgMusic.muted = isMuted;
+  bgMusic.volume = 0.7;
+  // Try to play, fallback to user gesture if needed
+  bgMusic.play().catch(() => {
+    const playBossMusic = () => {
+      bgMusic.play().catch(()=>{});
+      document.removeEventListener('click', playBossMusic);
+      document.removeEventListener('keydown', playBossMusic);
+    };
+    document.addEventListener('click', playBossMusic, { once: true });
+    document.addEventListener('keydown', playBossMusic, { once: true });
+  });
 }
+startCountdown(() => displayProblem());
 
 function playSound(type, idx) {
   // type: 'correct' or 'wrong', idx: 0, 1, or 2 (for which key)
@@ -550,9 +697,10 @@ function moveCharacters() {
 function handleAnswer(player, idx) {
   if (answered) return;
   let message = '';
-  if (idx === correctIndex) {
+  if (idx === currentProblem.correctIndex) {
     answered = true;
     playSound('correct', idx);
+    handleAnswer.pointLost = false; // Reset for next equation
     if (player === 1) {
       p1.score++;
     } else {
@@ -566,18 +714,46 @@ function handleAnswer(player, idx) {
       setTimeout(endGame, 800);
       return;
     }
-    document.getElementById('message').textContent = '';
-    displayProblem();
+    // Animate equation out to winner
+    const problemDiv = document.getElementById('problem');
+    const winnerSide = player === 1 ? 'left' : 'right';
+    // Animate out, then clear text, then animate in after delay
+    problemDiv.classList.remove('animate-in-center');
+    problemDiv.classList.add('animate-out-' + winnerSide);
+    
+    // When animation ends, completely hide the element
+    setTimeout(() => {
+      problemDiv.classList.add('hidden-equation');
+      problemDiv.classList.remove('animate-out-left', 'animate-out-right');
+      problemDiv.textContent = '';
+      
+      // After short delay, prepare new equation
+      setTimeout(() => {
+        // Generate and display new problem
+        displayProblem();
+        
+        // Get new problem div and prepare for animation
+        const newProblemDiv = document.getElementById('problem');
+        newProblemDiv.classList.remove('hidden-equation');
+        // Force reflow before adding animation class
+        void newProblemDiv.offsetWidth;
+        newProblemDiv.classList.add('animate-in-center');
+      }, 50);
+    }, 350); // Reduced to ensure it completes before animation ends
+
   } else {
     playSound('wrong', idx);
     message = `Oops! That's not right. Try again!`;
-    // Move the player's character back one space (min 0)
-    if (player === 1) {
-      p1.score = Math.max(0, p1.score - 1);
-      document.getElementById('p1-score-top').textContent = p1.score;
-    } else {
-      p2.score = Math.max(0, p2.score - 1);
-      document.getElementById('p2-score-top').textContent = p2.score;
+    // Only allow one point loss per equation
+    if (!handleAnswer.pointLost) {
+      if (player === 1) {
+        p1.score = Math.max(0, p1.score - 1);
+        document.getElementById('p1-score-top').textContent = p1.score;
+      } else {
+        p2.score = Math.max(0, p2.score - 1);
+        document.getElementById('p2-score-top').textContent = p2.score;
+      }
+      handleAnswer.pointLost = true;
     }
     moveCharacters();
     document.getElementById('message').textContent = message;
@@ -672,6 +848,7 @@ function endGame() {
       document.getElementById('p1-score-top').textContent = p1.score;
       document.getElementById('p2-score-top').textContent = p2.score;
       moveCharacters();
+      playMusic(true); // Start boss music again
       startCountdown(() => displayProblem());
     };
   };
