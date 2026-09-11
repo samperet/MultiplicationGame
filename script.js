@@ -450,6 +450,7 @@ function showPlayerSetup(step) {
           document.getElementById('p2-score-top').textContent = p2.score;
           moveCharacters();
           playMusic(true); // Switch to boss music and play
+          gameStarted = true; // From here on A/S/D and J/K/L (or a controller) answer questions
           startCountdown(() => displayProblem());
         }
       };
@@ -660,38 +661,6 @@ function highlightAnswerOption(optionNum) {
     }, 500);
   }
 }
-
-
-document.getElementById('p1-avatar').textContent = p1.avatar;
-document.getElementById('p2-avatar').textContent = p2.avatar;
-document.getElementById('p1-display').textContent = p1.name;
-document.getElementById('p2-display').textContent = p2.name;
-document.getElementById('p1-char').textContent = p1.avatar;
-document.getElementById('p2-char').textContent = p2.avatar;
-document.getElementById('p1-score-top').textContent = p1.score;
-document.getElementById('p2-score-top').textContent = p2.score;
-moveCharacters();
-gameStarted = true;
-// Switch to boss music when game starts
-if (bgMusic) {
-  bgMusic.pause();
-  bgMusic.currentTime = 0;
-  bgMusic.src = 'video-game-boss-fiight-259885.mp3';
-  bgMusic.load();
-  bgMusic.muted = isMuted;
-  bgMusic.volume = 0.7;
-  // Try to play, fallback to user gesture if needed
-  bgMusic.play().catch(() => {
-    const playBossMusic = () => {
-      bgMusic.play().catch(()=>{});
-      document.removeEventListener('click', playBossMusic);
-      document.removeEventListener('keydown', playBossMusic);
-    };
-    document.addEventListener('click', playBossMusic, { once: true });
-    document.addEventListener('keydown', playBossMusic, { once: true });
-  });
-}
-startCountdown(() => displayProblem());
 
 function playSound(type, idx) {
   // type: 'correct' or 'wrong', idx: 0, 1, or 2 (for which key)
