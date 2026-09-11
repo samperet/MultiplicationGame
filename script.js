@@ -92,14 +92,40 @@ function playMusic(forceBoss = false) {
   bgMusic.volume = 0.7;
   bgMusic.loop = true;
   bgMusic.play().catch(() => {
-    const tryPlay = () => {
+    // Autoplay was blocked: retry on the next real user gesture. Key presses
+    // synthesized from a controller are not user gestures, so skip those.
+    const tryPlay = (e) => {
+      if (e && !e.isTrusted) return;
       bgMusic.play().catch(()=>{});
       document.removeEventListener('click', tryPlay);
       document.removeEventListener('keydown', tryPlay);
     };
-    document.addEventListener('click', tryPlay, { once: true });
-    document.addEventListener('keydown', tryPlay, { once: true });
+    document.addEventListener('click', tryPlay);
+    document.addEventListener('keydown', tryPlay);
   });
+}
+
+// Clicks whichever "next step" button is on screen right now. Used by the Enter
+// key and by the Start/Options button on a controller. Returns true if a button was clicked.
+function activatePrimaryButton() {
+  // Prioritize confirm-player-btn (Next), then keys-next-btn (Continue), then instructions-next-btn,
+  // then the victory screen's Continue and Play Again buttons
+  const btnOrder = [
+    'confirm-player-btn',
+    'keys-next-btn',
+    'instructions-next-btn',
+    'start-game-btn',
+    'continue-btn',
+    'restart-btn'
+  ];
+  for (const id of btnOrder) {
+    const btn = document.getElementById(id);
+    if (btn && !btn.classList.contains('hidden') && !btn.disabled && btn.offsetParent !== null) {
+      btn.click();
+      return true;
+    }
+  }
+  return false;
 }
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -119,21 +145,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // --- Keyboard shortcut for Next/Continue/Start buttons ---
   document.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' || e.key === 'Return') {
-      // Prioritize confirm-player-btn (Next), then keys-next-btn (Continue), then instructions-next-btn, then start-game-btn
-      const btnOrder = [
-        'confirm-player-btn',
-        'keys-next-btn',
-        'instructions-next-btn',
-        'start-game-btn'
-      ];
-      for (const id of btnOrder) {
-        const btn = document.getElementById(id);
-        if (btn && !btn.classList.contains('hidden') && !btn.disabled && btn.offsetParent !== null) {
-          btn.click();
-          e.preventDefault();
-          break;
-        }
-      }
+      if (activatePrimaryButton()) e.preventDefault();
     }
   });
   // --- Play background music on load ---
@@ -190,6 +202,10 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // --- Draggable emoji characters with physics ---
   setupDraggableEmojis();
+
+  // --- Bluetooth / USB controller support ---
+  startGamepadPolling();
+  updateGamepadUI();
 
 
   let faviconIdx = 0;
@@ -290,6 +306,7 @@ let tempPlayers = [
   {avatar: ''}
 ];
 function showPlayerSetup(step) {
+  setupStep = step;
   document.getElementById('setup-step-player').classList.remove('hidden');
   document.getElementById('setup-step-instructions').classList.add('hidden');
   document.getElementById('setup-step-keys').classList.add('hidden');
@@ -326,6 +343,12 @@ function showPlayerSetup(step) {
         document.getElementById('key-demo-2'),
         document.getElementById('key-demo-3')
       ];
+      // Controller caps shown under the key caps when this player has a controller
+      const keyDemoPadBtns = [
+        document.getElementById('key-demo-pad-1'),
+        document.getElementById('key-demo-pad-2'),
+        document.getElementById('key-demo-pad-3')
+      ];
       const keyDemoAnswerBtns = Array.from(selectedArea.querySelectorAll('.key-demo-answer'));
       const keyDemoFeedback = document.getElementById('key-demo-feedback');
       // Set key labels for player 1 or 2
@@ -348,14 +371,23 @@ function showPlayerSetup(step) {
       }
       animateSequence();
       // Interactive: clicking key or answer animates and shows mapping
-      function showFeedback(idx) {
-        keyDemoFeedback.textContent = `"${keys[idx]}" = Answer ${idx+1}`;
+      function showFeedback(idx, fromGamepad) {
+        keyDemoFeedback.textContent = fromGamepad
+          ? `🎮 ${GAMEPAD_ANSWER_LABELS[idx]} = Answer ${idx+1}`
+          : `"${keys[idx]}" = Answer ${idx+1}`;
       }
       keyDemoBtns.forEach((btn, idx) => {
         btn.onclick = () => {
           btn.classList.add('pressed');
           setTimeout(() => btn.classList.remove('pressed'), 180);
           showFeedback(idx);
+        };
+      });
+      keyDemoPadBtns.forEach((btn, idx) => {
+        btn.onclick = () => {
+          btn.classList.add('pressed');
+          setTimeout(() => btn.classList.remove('pressed'), 180);
+          showFeedback(idx, true);
         };
       });
       keyDemoAnswerBtns.forEach((btn, idx) => {
@@ -380,9 +412,11 @@ function showPlayerSetup(step) {
           else if (key === 'l') idx = 2;
         }
         if (idx !== -1) {
-          keyDemoBtns[idx].classList.add('pressed');
-          showFeedback(idx);
-          setTimeout(() => keyDemoBtns[idx].classList.remove('pressed'), 180);
+          // Light up the controller cap for controller presses, the key cap otherwise
+          const cap = e.fromGamepad ? keyDemoPadBtns[idx] : keyDemoBtns[idx];
+          cap.classList.add('pressed');
+          showFeedback(idx, e.fromGamepad);
+          setTimeout(() => cap.classList.remove('pressed'), 180);
         }
       }
       document.addEventListener('keydown', keydownHandler);
@@ -393,6 +427,7 @@ function showPlayerSetup(step) {
         grid.classList.remove('hidden');
       };
       confirmBtn.onclick = () => {
+        document.removeEventListener('keydown', keydownHandler);
         tempPlayers[step-1] = {avatar: e};
         selectedArea.classList.add('hidden');
         grid.classList.remove('hidden');
@@ -424,6 +459,7 @@ function showPlayerSetup(step) {
 
   selectedArea.classList.add('hidden');
   grid.classList.remove('hidden');
+  updateGamepadUI();
 }
 
 
@@ -770,6 +806,178 @@ document.addEventListener('keydown', (e) => {
   } else if ((idx = p2Keys.indexOf(key)) !== -1) {
     handleAnswer(2, idx);
   }
+});
+
+// --- Bluetooth / USB controller support ---
+// Controllers are read through the browser's Gamepad API. Bluetooth controllers
+// are paired with the computer or tablet as usual; the browser then lists them
+// like any other gamepad. The first controller to connect drives Player 1, the
+// second drives Player 2 (a controller that reconnects goes back to its player).
+// Controller presses are turned into the same key presses the keyboard produces
+// (A/S/D, J/K/L and Enter), so every screen that reacts to the keyboard reacts to
+// a controller in exactly the same way.
+//
+//   Answer 1: D-pad left,        left face button,           left stick left
+//   Answer 2: D-pad down or up,  bottom or top face button,  left stick down or up
+//   Answer 3: D-pad right,       right face button,          left stick right
+//   Enter:    Start / Options / + button (Next, Continue, Play Again)
+const GAMEPAD_ANSWER_LABELS = ['◀', '▼', '▶'];
+const GAMEPAD_STICK_THRESHOLD = 0.6;
+const gamepadSlots = [null, null];      // gamepad.index driving Player 1 / Player 2 (null = none)
+const gamepadSlotLastId = ['', ''];     // controller id last seen in each slot, so a reconnect keeps its player
+const gamepadPrevActions = {};          // gamepad.index -> actions held on the previous poll
+let gamepadPollingStarted = false;
+
+function gamepadsSupported() {
+  return typeof navigator !== 'undefined' && typeof navigator.getGamepads === 'function';
+}
+
+function getConnectedGamepads() {
+  if (!gamepadsSupported()) return [];
+  let list;
+  try {
+    list = navigator.getGamepads();
+  } catch (err) {
+    return []; // e.g. blocked by a permissions policy inside an iframe
+  }
+  const pads = [];
+  for (let i = 0; i < list.length; i++) {
+    const gp = list[i];
+    if (gp && gp.connected !== false) pads.push(gp);
+  }
+  return pads;
+}
+
+function gamepadPlayerFor(index) {
+  return gamepadSlots.indexOf(index) + 1; // 1 or 2, or 0 if this controller has no player
+}
+
+function assignGamepad(gp) {
+  if (!gp || gamepadSlots.includes(gp.index)) return;
+  // Prefer the slot this controller used before, otherwise the lowest free one
+  let slot = gamepadSlots.findIndex((used, i) => used === null && gamepadSlotLastId[i] === gp.id);
+  if (slot === -1) slot = gamepadSlots.indexOf(null);
+  if (slot === -1) return; // only two players
+  gamepadSlots[slot] = gp.index;
+  gamepadSlotLastId[slot] = gp.id;
+  // Browsers only expose a controller after a button is pressed on it; don't
+  // treat that wake-up press as an answer.
+  gamepadPrevActions[gp.index] = readGamepadActions(gp);
+  updateGamepadUI();
+}
+
+function releaseGamepad(index) {
+  const slot = gamepadSlots.indexOf(index);
+  if (slot !== -1) gamepadSlots[slot] = null;
+  delete gamepadPrevActions[index];
+  updateGamepadUI();
+}
+
+function gamepadButtonPressed(gp, i) {
+  const button = gp.buttons[i];
+  if (button === undefined || button === null) return false;
+  return typeof button === 'object' ? (button.pressed || button.value > 0.5) : button > 0.5;
+}
+
+// Which answers (index 0-2) and whether "confirm" are held right now on a controller
+function readGamepadActions(gp) {
+  const answers = [false, false, false];
+  const press = (i) => gamepadButtonPressed(gp, i);
+  // D-pad (standard mapping buttons 12 = up, 13 = down, 14 = left, 15 = right)
+  if (press(14)) answers[0] = true;
+  if (press(12) || press(13)) answers[1] = true;
+  if (press(15)) answers[2] = true;
+  // Face buttons (standard mapping: 2 = left, 0 = bottom, 3 = top, 1 = right)
+  if (press(2)) answers[0] = true;
+  if (press(0) || press(3)) answers[1] = true;
+  if (press(1)) answers[2] = true;
+  // Left stick, plus the D-pad "hat" axes that some non-standard controllers report
+  const sticks = [[gp.axes[0] || 0, gp.axes[1] || 0]];
+  if (gp.mapping !== 'standard') sticks.push([gp.axes[6] || 0, gp.axes[7] || 0]);
+  sticks.forEach(([x, y]) => {
+    if (Math.max(Math.abs(x), Math.abs(y)) < GAMEPAD_STICK_THRESHOLD) return;
+    if (Math.abs(x) > Math.abs(y)) answers[x < 0 ? 0 : 2] = true;
+    else answers[1] = true;
+  });
+  return { answers, confirm: press(9) };
+}
+
+// Dispatches a keydown on the document so every existing keyboard handler reacts
+function pressVirtualKey(key, player) {
+  const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+  event.fromGamepad = true;
+  event.gamepadPlayer = player;
+  document.dispatchEvent(event);
+}
+
+function pollGamepads() {
+  const pads = getConnectedGamepads();
+  const seen = [];
+  pads.forEach(gp => {
+    seen.push(gp.index);
+    assignGamepad(gp);
+    const player = gamepadPlayerFor(gp.index);
+    if (!player) return;
+    const prev = gamepadPrevActions[gp.index] || { answers: [false, false, false], confirm: false };
+    const now = readGamepadActions(gp);
+    const keys = player === 1 ? p1Keys : p2Keys;
+    now.answers.forEach((held, idx) => {
+      if (held && !prev.answers[idx]) pressVirtualKey(keys[idx], player);
+    });
+    if (now.confirm && !prev.confirm) pressVirtualKey('Enter', player);
+    gamepadPrevActions[gp.index] = now;
+  });
+  // Forget controllers that vanished without a disconnect event
+  gamepadSlots.forEach(index => {
+    if (index !== null && !seen.includes(index)) releaseGamepad(index);
+  });
+  requestAnimationFrame(pollGamepads);
+}
+
+function startGamepadPolling() {
+  if (gamepadPollingStarted || !gamepadsSupported()) return;
+  gamepadPollingStarted = true;
+  requestAnimationFrame(pollGamepads);
+}
+
+function updateGamepadUI() {
+  const connected = gamepadSlots.map(index => index !== null);
+  const count = connected.filter(Boolean).length;
+  // In-game key hints
+  connected.forEach((has, i) => {
+    const badge = document.getElementById(`p${i + 1}-pad`);
+    if (badge) badge.classList.toggle('hidden', !has);
+  });
+  // Title screen
+  const titleStatus = document.getElementById('gamepad-title-status');
+  if (titleStatus) {
+    titleStatus.classList.toggle('hidden', !gamepadsSupported());
+    if (count === 0) {
+      titleStatus.textContent = '🎮 Have a Bluetooth controller? Press any button on it to connect.';
+    } else if (count === 1) {
+      const who = connected[0] ? 1 : 2;
+      titleStatus.textContent = `🎮 1 controller connected (Player ${who}). Press any button on another controller for Player ${3 - who}.`;
+    } else {
+      titleStatus.textContent = '🎮 2 controllers connected. Player 1 and Player 2 are ready!';
+    }
+  }
+  // Character setup screen ("Your Keys" demo)
+  const hasForStep = connected[setupStep - 1];
+  document.querySelectorAll('.key-demo-pad').forEach(el => el.classList.toggle('hidden', !hasForStep));
+  const demoStatus = document.getElementById('key-demo-gamepad-status');
+  if (demoStatus) {
+    if (!gamepadsSupported()) demoStatus.textContent = '';
+    else if (hasForStep) demoStatus.textContent = '🎮 Your controller is connected! Try its D-pad or buttons. Start/Options = Next.';
+    else demoStatus.textContent = `🎮 Using a Bluetooth controller? Press any button on it to connect it for Player ${setupStep}.`;
+  }
+}
+
+window.addEventListener('gamepadconnected', (e) => {
+  assignGamepad(e.gamepad);
+  startGamepadPolling();
+});
+window.addEventListener('gamepaddisconnected', (e) => {
+  if (e.gamepad) releaseGamepad(e.gamepad.index);
 });
 
 function endGame() {
