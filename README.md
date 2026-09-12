@@ -53,9 +53,10 @@ longer buzz for a wrong one.
 The mute button in the corner is the single quiet switch: it silences the music,
 the sound effects and the rumble.
 
-The How to Play screen only shows controller help once a controller is
-connected, and its try-it-out area names the player who pressed and lights
-their answer in their colour: pink for Player 1, indigo for Player 2.
+Controllers are set up on the title screen, and the screens after it mention
+controllers only when one is connected. On How to Play, pressing a control
+lights that control and the answer it picks in that player's colour: pink for
+Player 1, indigo for Player 2.
 
 The keyboard can do everything a controller can. Arrow keys move the character
 grid highlight and Enter picks.

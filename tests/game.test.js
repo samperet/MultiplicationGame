@@ -125,8 +125,10 @@ function installHarness() {
   const keys = () => page.evaluate(() => window.__keys.splice(0));
   const rumbles = () => page.evaluate(() => window.__rumbles.splice(0));
   const text = (sel) => page.locator(sel).first().evaluate(el => el.textContent.trim());
+  // Asks the browser what is actually on screen. Deliberately does not look at
+  // the "hidden" class: a class that fails to take effect is the bug to catch.
   const visible = (sel) => page.locator(sel).first()
-    .evaluate(el => el.getClientRects().length > 0 && !el.classList.contains('hidden'));
+    .evaluate(el => el.getClientRects().length > 0);
   const slots = () => page.evaluate(() => gamepadSlots.slice());
   const tap = async (index, btn) => {
     await page.evaluate(([i, b]) => window.__press(i, b, true), [index, btn]);
@@ -237,28 +239,29 @@ function installHarness() {
   check('each step starts scrolled to its top',
     await page.locator('#setup-card').evaluate(el => el.scrollTop === 0));
   check('no controller section without a controller', !(await visible('#howto-gamepad-block')));
-  check('the test hint mentions only keys',
-    (await text('#key-test-instructions')) === 'Press A, S, D or J, K, L to see which answer it picks',
-    await text('#key-test-instructions'));
+  check('the Try It Now block is gone', await page.locator('#key-test-feedback').count() === 0);
+  check('the race description is gone',
+    !(await text('#setup-step-keys')).includes('First to the finish line'));
+  check('the lock-out note stays',
+    (await text('#setup-step-keys')).includes('locks you out for a moment'));
+  // A press lights the key and the answer it picks, in that player's colour
   await page.keyboard.press('s');
   await sleep(60);
-  check('the key test answers a keyboard press',
-    (await text('#key-test-feedback')) === 'Player 1 · "S" picks 12', await text('#key-test-feedback'));
   const p1Colours = await page.locator('#answer-option-2').evaluate(el => ({
     player: el.dataset.player, bg: getComputedStyle(el).backgroundColor
   }));
+  check('a Player 1 press lights their answer',
+    await page.locator('#answer-option-2.answer-flash').count() === 1 && p1Colours.player === '1', p1Colours);
+  check('a Player 1 press lights their key cap',
+    await page.locator('#key-s.key-flash').count() === 1);
   await page.keyboard.press('l');
   await sleep(60);
-  check('a Player 2 press is attributed to Player 2',
-    (await text('#key-test-feedback')) === 'Player 2 · "L" picks 15', await text('#key-test-feedback'));
   const p2Colours = await page.locator('#answer-option-3').evaluate(el => ({
     player: el.dataset.player, bg: getComputedStyle(el).backgroundColor
   }));
   check('each player lights the answer in their own colour',
     p1Colours.player === '1' && p2Colours.player === '2' && p1Colours.bg !== p2Colours.bg,
     [p1Colours, p2Colours]);
-  const feedbackColours = await page.locator('#key-test-feedback').evaluate(el => getComputedStyle(el).color);
-  check('the feedback text carries that colour too', feedbackColours === 'rgb(79, 70, 229)', feedbackColours);
 
   // A controller wakes up with a button held down
   await keys();
@@ -271,8 +274,6 @@ function installHarness() {
   check('the controller section appears once one is connected', await visible('#howto-gamepad-block'));
   check('controller counted on How to Play',
     (await text('#howto-gamepad-status')).includes('1 controller connected'));
-  check('the test hint now mentions controllers',
-    (await text('#key-test-instructions')).includes('button on a controller'));
   // One player on a controller: only that player's keyboard column goes away
   check("the controller player's keyboard column is hidden", !(await visible('#howto-keys-1')));
   check("the keyboard player's column stays", await visible('#howto-keys-2'));
@@ -280,8 +281,9 @@ function installHarness() {
   check('the example hint shows a button for one and a key for the other',
     (await text('#answer-hint-1')) === '◀ / J', await text('#answer-hint-1'));
   await tap(0, 14);
-  check('the key test answers a controller press',
-    (await text('#key-test-feedback')) === 'Player 1 · 🎮 ◀ picks 10', await text('#key-test-feedback'));
+  check('a controller press lights that player\'s answer',
+    await page.locator('#answer-option-1.answer-flash').count() === 1 &&
+    await page.locator('#answer-option-1').evaluate(el => el.dataset.player) === '1');
   check('only the answer just picked is lit',
     await page.locator('.answer-flash').count() === 1,
     await page.locator('.answer-flash').count());
@@ -406,7 +408,7 @@ function installHarness() {
   correct = await page.evaluate(() => currentProblem.correctIndex);
   await rumbles();
   await tap(1, dpadFor((correct + 1) % 3));
-  check('a wrong answer says who has to wait', (await text('#message')).includes('has to wait'), await text('#message'));
+  check('a wrong answer shows no message', (await text('#message')) === '', await text('#message'));
   check('a wrong answer rumbles once', (await rumbles()).length === 1);
   check('the locked lane is marked',
     await page.locator('#p2-lane').evaluate(el => el.classList.contains('lane-locked')));
@@ -522,6 +524,26 @@ function installHarness() {
     const saved = JSON.parse(localStorage.getItem('mathRacerSettings') || '{}');
     return saved.avatars && saved.avatars['1'] === '🐯' && saved.avatars['2'] === '🐸';
   }));
+
+  // ------------------------------------------ a run with no controllers at all
+  // Controllers are set up on the title screen, so with none connected no
+  // later screen should mention them
+  await page.reload({ waitUntil: 'load' });
+  await sleep(300);
+  check('no controllers after a reload', (await slots()).every(v => v === null));
+  await page.locator('#instructions-next-btn').click();
+  check('How to Play hides the controller section', !(await visible('#howto-gamepad-block')));
+  await page.locator('#keys-next-btn').click();
+  check('the grid hint does not mention a controller',
+    !(await text('#emoji-grid-status')).toLowerCase().includes('controller'),
+    await text('#emoji-grid-status'));
+  await page.locator('#emoji-grid button:not([disabled])').first().click();
+  check('the character screen shows key caps', await visible('#key-demo-1'));
+  check('the character screen hides controller caps', !(await visible('#key-demo-pad-1')));
+  check('the character screen says nothing about controllers',
+    (await text('#key-demo-gamepad-status')) === '', await text('#key-demo-gamepad-status'));
+  check('the demo calls them keys', (await text('#key-demo-label')) === 'Your Keys:');
+  await page.screenshot({ path: path.join(SHOTS, '09-character-no-controller.png') });
 
   check('no page errors', pageErrors.length === 0, pageErrors);
   check('nothing was requested from the network', offlineViolations.length === 0, offlineViolations);

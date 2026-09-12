@@ -941,34 +941,28 @@ function howToPlayActive() {
 
 function setupKeyTest() {
   document.addEventListener('keydown', (e) => {
-    if (howToPlayActive()) showKeyTest(e.key.toLowerCase(), !!e.fromGamepad);
+    if (howToPlayActive()) showKeyTest(e.key.toLowerCase());
   });
   // Clicking a key cap or an answer demonstrates the same thing
   HOWTO_KEY_CAPS.forEach((caps, playerIdx) => caps.forEach((id, idx) => {
     const cap = document.getElementById(id);
-    if (cap) cap.onclick = () => showKeyTest(keysFor(playerIdx + 1)[idx], false);
+    if (cap) cap.onclick = () => showKeyTest(keysFor(playerIdx + 1)[idx]);
   }));
   document.querySelectorAll('[id^="answer-option-"]').forEach((option, idx) => {
-    option.onclick = () => showKeyTest(p1Keys[idx], hasGamepad(1));
+    option.onclick = () => showKeyTest(p1Keys[idx]);
   });
 }
 
-function showKeyTest(key, fromGamepad) {
+// Pressing a control on this screen lights that control and the answer it
+// picks, in the colour of the player it belongs to
+function showKeyTest(key) {
   const player = p1Keys.includes(key) ? 1 : (p2Keys.includes(key) ? 2 : 0);
   if (!player) return;
   const idx = keysFor(player).indexOf(key);
   const option = document.getElementById(`answer-option-${idx + 1}`);
   flash(document.getElementById(HOWTO_KEY_CAPS[player - 1][idx]), 'key-flash', '.key-button');
-  // The answer lights up in the colour of whoever pressed, and so does the text
   if (option) option.dataset.player = String(player);
   flash(option, 'answer-flash', '[id^="answer-option-"]');
-  const feedback = document.getElementById('key-test-feedback');
-  if (feedback && option) {
-    const control = fromGamepad ? `🎮 ${GAMEPAD_ANSWER_LABELS[idx]}` : `"${key.toUpperCase()}"`;
-    feedback.textContent = `Player ${player} · ${control} picks ${option.firstChild.textContent.trim()}`;
-    feedback.dataset.player = String(player);
-    feedback.classList.remove('text-gray-500');
-  }
 }
 
 // Briefly marks one element, clearing the same mark from its group first so
@@ -1013,7 +1007,6 @@ function moveCharacters() {
 function handleAnswer(player, idx) {
   if (answered || !currentProblem) return;
   if (isLockedOut(player)) return; // still serving the penalty for a wrong guess
-  let message = '';
   if (idx === currentProblem.correctIndex) {
     answered = true;
     clearQuestionTimer();
@@ -1058,7 +1051,6 @@ function handleAnswer(player, idx) {
   } else {
     playSound('wrong', idx);
     rumbleGamepad(player, 'wrong');
-    message = `Oops! That's not right. ${playerState(player).avatar} has to wait a moment.`;
     // One point lost per equation per player, so a second wrong guess by the
     // same player does not keep draining their score
     if (!pointLost[player]) {
@@ -1069,7 +1061,6 @@ function handleAnswer(player, idx) {
     }
     lockOut(player);
     moveCharacters();
-    document.getElementById('message').textContent = message;
     // Do NOT set answered=true: the other player can still answer this question
   }
 }
@@ -1402,25 +1393,20 @@ function updateGamepadUI() {
   if (howtoStatus && count > 0) {
     howtoStatus.textContent = `${count} controller${count > 1 ? 's' : ''} connected. Try the buttons below!`;
   }
-  const testHint = document.getElementById('key-test-instructions');
-  if (testHint) {
-    testHint.textContent = count === 0
-      ? 'Press A, S, D or J, K, L to see which answer it picks'
-      : 'Press a key, or a button on a controller, to see which answer it picks';
-  }
-  // Character screen
+  // Character screen. Controllers are connected on the title screen, so with
+  // none set up this screen says nothing about them at all.
   const padForStep = connected[setupStep - 1];
   const demoStatus = document.getElementById('key-demo-gamepad-status');
   if (demoStatus) {
-    if (!gamepadsSupported()) demoStatus.textContent = '';
+    if (count === 0) demoStatus.textContent = '';
     else if (padForStep) demoStatus.textContent = '🎮 Your controller is connected! Try its D-pad or buttons. Start/Options = Next.';
-    else demoStatus.textContent = `🎮 Using a Bluetooth controller? Press any button on it to connect it for Player ${setupStep}.`;
+    else demoStatus.textContent = `🎮 Press any button on your controller to use it for Player ${setupStep}.`;
   }
   const gridStatus = document.getElementById('emoji-grid-status');
   if (gridStatus) {
     gridStatus.textContent = padForStep
       ? '🎮 Move with the D-pad, pick with the A button. Arrow keys and Enter work too.'
-      : 'Use the arrow keys and Enter, or tap a character. A controller works here too.';
+      : 'Use the arrow keys and Enter, or tap a character.';
   }
 }
 
