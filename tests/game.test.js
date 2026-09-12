@@ -164,6 +164,16 @@ function installHarness() {
     await page.evaluate(() => currentProblem === null && gameStarted === false));
   check('title-screen keys leave the scores alone',
     await page.evaluate(() => p1.score === 0 && p2.score === 0));
+  // The title characters can be dragged around
+  const tiger = page.locator('#draggable-tiger');
+  const box = await tiger.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 40, { steps: 4 });
+  await page.mouse.up();
+  check('title characters can be dragged',
+    (await tiger.evaluate(el => el.style.transform)).includes('translate3d'),
+    await tiger.evaluate(el => el.style.transform));
   await page.screenshot({ path: path.join(SHOTS, '01-title.png') });
 
   // --------------------------------------------------------------- settings
@@ -244,9 +254,18 @@ function installHarness() {
   check('releasing the wake-up button emits nothing', (await keys()).length === 0);
   check('controller counted on How to Play',
     (await text('#howto-gamepad-status')).includes('1 controller connected'));
+  // One player on a controller: only that player's keyboard column goes away
+  check("the controller player's keyboard column is hidden", !(await visible('#howto-keys-1')));
+  check("the keyboard player's column stays", await visible('#howto-keys-2'));
+  check('the keyboard block stays while one player uses keys', await visible('#howto-keyboard-block'));
+  check('the example hint shows a button for one and a key for the other',
+    (await text('#answer-hint-1')) === '◀ / J', await text('#answer-hint-1'));
   await tap(0, 14);
   check('the key test answers a controller press',
     (await text('#key-test-feedback')).startsWith('🎮 ◀ picks'), await text('#key-test-feedback'));
+  check('only the answer just picked is lit',
+    await page.locator('.answer-flash').count() === 1,
+    await page.locator('.answer-flash').count());
   check('a controller press on How to Play does not start a round',
     await page.evaluate(() => currentProblem === null));
   await page.screenshot({ path: path.join(SHOTS, '03-how-to-play.png') });
@@ -278,6 +297,9 @@ function installHarness() {
 
   // ------------------------------------------------------------- key demo
   check('controller caps show in the demo', await visible('#key-demo-pad-1'));
+  check('key caps are hidden for a player on a controller', !(await visible('#key-demo-1')));
+  check('the demo calls them buttons, not keys',
+    (await text('#key-demo-label')) === 'Your Buttons:', await text('#key-demo-label'));
   await page.evaluate(() => window.__press(0, 14, true));
   await frames(2);
   check('the demo lights the controller cap',
@@ -290,12 +312,24 @@ function installHarness() {
   await sleep(50);
   check('the demo still names keyboard keys',
     (await text('#key-demo-feedback')) === '"A" = Answer 1', await text('#key-demo-feedback'));
+  await page.locator('#selected-emoji-area .key-demo-answer').nth(2).click();
+  check('clicking an answer in the demo shows its control',
+    (await text('#key-demo-feedback')).includes('Answer 3'), await text('#key-demo-feedback'));
+  // Back goes to the grid, and the same character can be picked again
+  await page.locator('#back-player-btn').click();
+  check('Back returns to the character grid',
+    await visible('#emoji-grid') && !(await visible('#selected-emoji-area')));
+  await tap(0, 0);
+  check('a character can be picked again after Back',
+    (await text('#selected-emoji')) === '🐯', await text('#selected-emoji'));
 
   // --------------------------------------------------- character grid: player 2
   await tap(0, 9);
   check('Start advances to Player 2', (await text('#setup-player-label')).startsWith('Player 2'));
   check("Player 1's character is taken",
     await page.locator('#emoji-grid .emoji-btn[disabled]').count() === 1);
+  check('a player with no controller keeps the key caps',
+    await page.locator('#key-demo-1').evaluate(el => !el.classList.contains('hidden')));
   check('the highlight skips the taken character', (await highlighted()) === '🦄', await highlighted());
 
   // Player 1's controller is locked to Player 1 and cannot be stolen
@@ -324,6 +358,18 @@ function installHarness() {
   await sleep(3600);
   check('a question is shown after the countdown', (await text('#problem')).includes('×'), await text('#problem'));
   check('the tap buttons are rendered', await page.locator('.answer-tap-btn').count() === 6);
+  // Answer tiles carry the number only, no key letters
+  const tileText = await page.locator('#choices > div').evaluateAll(
+    els => els.map(el => el.textContent.replace(/\s+/g, '')));
+  check('answer tiles show no key letters',
+    tileText.every(t => !/[ASDJKL]/.test(t)), tileText);
+  check('answer tiles still show their number',
+    tileText.every(t => /\d/.test(t)), tileText);
+  // Both players on controllers: no keyboard hints anywhere
+  check('keyboard hints are hidden when both use controllers',
+    !(await visible('#p1-keys')) && !(await visible('#p2-keys')));
+  check('controller hints are shown instead',
+    await visible('#p1-pad') && await visible('#p2-pad'));
   check('the timer bar is hidden when the timer is off', !(await visible('#question-timer')));
   await page.screenshot({ path: path.join(SHOTS, '06-game.png') });
 
@@ -355,6 +401,15 @@ function installHarness() {
   await sleep(1400);
   check('the lock-out ends by itself',
     !(await page.locator('#p2-lane').evaluate(el => el.classList.contains('lane-locked'))));
+
+  // Mute is the one quiet switch: it covers rumble as well as sound
+  await rumbles();
+  await page.locator('#mute-btn').click();
+  await page.evaluate(() => rumbleGamepad(1, 'wrong'));
+  check('mute silences rumble too', (await rumbles()).length === 0);
+  await page.locator('#mute-btn').click();
+  await page.evaluate(() => rumbleGamepad(1, 'wrong'));
+  check('rumble returns when unmuted', (await rumbles()).length === 1);
 
   // Touch play
   correct = await page.evaluate(() => currentProblem.correctIndex);
@@ -398,6 +453,8 @@ function installHarness() {
   await page.evaluate(() => window.__disconnect(1, true));
   await frames(2);
   check('a disconnected controller hides its badge', !(await visible('#p2-pad')) && await visible('#p1-pad'));
+  check('the keyboard hints come back for that player',
+    await visible('#p2-keys') && !(await visible('#p1-keys')));
   await page.evaluate(() => window.__connect(2, { id: 'Generic Pad', mapping: '' }));
   await frames(3);
   check('a new controller takes the free slot', (await slots()).join(',') === '0,2', await slots());

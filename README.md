@@ -9,7 +9,9 @@ access needed.
 ## Playing
 
 Each question shows three answers. The three answers sit in a fixed order, so
-each player always has the same three controls: left, middle, right.
+each player always has the same three controls: left, middle, right. The game
+shows each player only the controls they are using: connect a controller and
+that player's keyboard hints are replaced by controller buttons.
 
 | Player | Keyboard | Controller | Touch |
 | --- | --- | --- | --- |
@@ -46,8 +48,10 @@ Buttons, depending on what is on screen:
 | Anywhere | Start or Options works like Enter, for Next, Continue and Play Again |
 
 Controllers that support it also rumble: a double tap for a correct answer, one
-longer buzz for a wrong one. Rumble follows the mute button, since a controller
-resting on a table is audible too.
+longer buzz for a wrong one.
+
+The mute button in the corner is the single quiet switch: it silences the music,
+the sound effects and the rumble.
 
 The keyboard can do everything a controller can. Arrow keys move the character
 grid highlight and Enter picks.

@@ -106,6 +106,42 @@
       box-shadow: 0 2px 8px rgba(236,72,153,0.35);
     }
 
+    /* Key caps in the character setup demo */
+    .key-demo-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.5rem;
+      height: 2.5rem;
+      font-size: 1.5rem;
+      font-weight: bold;
+      background: #f3f4f6;
+      border-radius: 0.5rem;
+      border: 2px solid #d1d5db;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+      transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+      cursor: pointer;
+      user-select: none;
+    }
+    .key-demo-btn.pressed {
+      background: #fde68a;
+      box-shadow: 0 4px 12px rgba(252,211,77,0.25);
+      transform: scale(0.96);
+    }
+
+    /* Flash a control on the How to Play screen when it is used */
+    .key-flash {
+      transform: scale(1.12);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    #key-a.key-flash, #key-s.key-flash, #key-d.key-flash { background: #fbcfe8; }
+    #key-j.key-flash, #key-k.key-flash, #key-l.key-flash { background: #c7d2fe; }
+    .answer-flash {
+      background: #fef9c3;
+      transform: scale(1.08);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+    }
+
     /* A player locked out after a wrong answer */
     .lane-locked {
       background-color: #d1d5db !important;
@@ -120,7 +156,7 @@
 </head>
 <body>
   <!-- Global mute button (fixed position) -->
-  <button id="mute-btn" class="fixed top-4 right-4 z-50 px-3 py-1 rounded-full bg-white/80 hover:bg-white text-gray-700 text-xl shadow-md transition flex items-center backdrop-blur-sm border border-white/30" title="Mute/unmute music">
+  <button id="mute-btn" class="fixed top-4 right-4 z-50 px-3 py-1 rounded-full bg-white/80 hover:bg-white text-gray-700 text-xl shadow-md transition flex items-center backdrop-blur-sm border border-white/30" title="Mute/unmute sound">
     <span id="mute-icon">🔊</span>
   </button>
   <audio id="bg-music" src="save-as-115826.mp3" preload="auto" loop></audio>
@@ -172,21 +208,21 @@
           <span id="selected-emoji" class="text-6xl mb-2"></span>
           <span id="selected-emoji-name" class="text-lg font-semibold text-gray-700 mb-2"></span>
           <div id="key-demo-area" class="flex flex-col items-center mb-2 w-full">
-            <div class="mb-2 text-gray-700 font-medium">Your Keys:</div>
+            <div id="key-demo-label" class="mb-2 text-gray-700 font-medium">Your Keys:</div>
             <div class="flex gap-3">
               <div class="flex flex-col items-center">
                 <button class="key-demo-answer px-4 py-2 rounded bg-yellow-100 hover:bg-yellow-200 font-bold transition" data-answer="1">Answer 1</button>
-                <div class="key-demo-btn mt-1" id="key-demo-1">A</div>
+                <div class="key-demo-btn key-demo-key mt-1" id="key-demo-1">A</div>
                 <div class="key-demo-btn key-demo-pad mt-1 hidden" id="key-demo-pad-1" title="Controller: D-pad left or the left face button">◀</div>
               </div>
               <div class="flex flex-col items-center">
                 <button class="key-demo-answer px-4 py-2 rounded bg-yellow-100 hover:bg-yellow-200 font-bold transition" data-answer="2">Answer 2</button>
-                <div class="key-demo-btn mt-1" id="key-demo-2">S</div>
+                <div class="key-demo-btn key-demo-key mt-1" id="key-demo-2">S</div>
                 <div class="key-demo-btn key-demo-pad mt-1 hidden" id="key-demo-pad-2" title="Controller: D-pad down (or up) or the bottom (or top) face button">▼</div>
               </div>
               <div class="flex flex-col items-center">
                 <button class="key-demo-answer px-4 py-2 rounded bg-yellow-100 hover:bg-yellow-200 font-bold transition" data-answer="3">Answer 3</button>
-                <div class="key-demo-btn mt-1" id="key-demo-3">D</div>
+                <div class="key-demo-btn key-demo-key mt-1" id="key-demo-3">D</div>
                 <div class="key-demo-btn key-demo-pad mt-1 hidden" id="key-demo-pad-3" title="Controller: D-pad right or the right face button">▶</div>
               </div>
             </div>
@@ -198,29 +234,6 @@
             <button id="confirm-player-btn" class="px-8 py-2 bg-pink-500 text-white font-bold rounded-lg shadow-lg hover:bg-pink-600 transition">Next</button>
           </div>
         </div>
-        <style>
-          .key-demo-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 2.5rem;
-            height: 2.5rem;
-            font-size: 1.5rem;
-            font-weight: bold;
-            background: #f3f4f6;
-            border-radius: 0.5rem;
-            border: 2px solid #d1d5db;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-            transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
-            cursor: pointer;
-            user-select: none;
-          }
-          .key-demo-btn.pressed {
-            background: #fde68a;
-            box-shadow: 0 4px 12px rgba(252,211,77,0.25);
-            transform: scale(0.96);
-          }
-        </style>
         <div id="emoji-grid-status" class="text-gray-500 text-sm mb-1 text-center px-2" aria-live="polite">Use the arrow keys and Enter, or tap a character. A controller works here too.</div>
       </div>
       <div id="setup-step-keys" class="w-full flex flex-col items-center hidden">
@@ -234,26 +247,26 @@
           <div class="flex justify-center gap-6 mb-4">
             <div id="answer-option-1" class="relative px-5 py-3 bg-white rounded-lg shadow-sm font-bold text-xl text-center w-16 cursor-pointer hover:bg-yellow-50 transition-all">
               10
-              <div class="absolute -bottom-6 left-1/2 transform -translate-x-1/2 whitespace-nowrap text-xs font-semibold text-gray-500">A / J &middot; ◀</div>
+              <div id="answer-hint-1" class="absolute -bottom-6 left-1/2 transform -translate-x-1/2 whitespace-nowrap text-xs font-semibold text-gray-500"></div>
             </div>
             <div id="answer-option-2" class="relative px-5 py-3 bg-white rounded-lg shadow-sm font-bold text-xl text-center w-16 cursor-pointer hover:bg-yellow-50 transition-all">
               12
-              <div class="absolute -bottom-6 left-1/2 transform -translate-x-1/2 whitespace-nowrap text-xs font-semibold text-gray-500">S / K &middot; ▼</div>
+              <div id="answer-hint-2" class="absolute -bottom-6 left-1/2 transform -translate-x-1/2 whitespace-nowrap text-xs font-semibold text-gray-500"></div>
             </div>
             <div id="answer-option-3" class="relative px-5 py-3 bg-white rounded-lg shadow-sm font-bold text-xl text-center w-16 cursor-pointer hover:bg-yellow-50 transition-all">
               15
-              <div class="absolute -bottom-6 left-1/2 transform -translate-x-1/2 whitespace-nowrap text-xs font-semibold text-gray-500">D / L &middot; ▶</div>
+              <div id="answer-hint-3" class="absolute -bottom-6 left-1/2 transform -translate-x-1/2 whitespace-nowrap text-xs font-semibold text-gray-500"></div>
             </div>
           </div>
         </div>
         
         <!-- Key mapping visualization -->
-        <div class="w-full bg-white rounded-lg p-4 mb-6 shadow-sm border border-gray-100">
+        <div id="howto-keyboard-block" class="w-full bg-white rounded-lg p-4 mb-6 shadow-sm border border-gray-100">
           <h3 class="text-lg font-semibold text-gray-700 mb-3 text-center">Keyboard Controls</h3>
           
-          <div class="grid grid-cols-2 gap-4">
+          <div class="flex flex-wrap justify-center gap-8">
             <!-- Player 1 controls -->
-            <div class="flex flex-col items-center">
+            <div id="howto-keys-1" class="flex flex-col items-center">
               <div class="flex items-center justify-center mb-1">
                 <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-pink-100 text-pink-600 font-bold text-sm">1</span>
                 <span class="ml-2 font-semibold text-gray-700">Player 1</span>
@@ -266,7 +279,7 @@
             </div>
             
             <!-- Player 2 controls -->
-            <div class="flex flex-col items-center">
+            <div id="howto-keys-2" class="flex flex-col items-center">
               <div class="flex items-center justify-center mb-1">
                 <span class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 font-bold text-sm">2</span>
                 <span class="ml-2 font-semibold text-gray-700">Player 2</span>
@@ -305,7 +318,7 @@
         <div class="w-full bg-gradient-to-r from-pink-50 to-indigo-50 rounded-lg p-4 mb-6 shadow-sm">
           <h3 class="text-lg font-semibold text-gray-700 mb-2 text-center">Try It Now!</h3>
           <p class="text-gray-600 text-center mb-3">Press a key, or a button on a controller, to see which answer it picks</p>
-          <div id="key-test-feedback" class="text-center text-lg font-medium text-gray-500 h-8">Press A, S, D or J, K, L</div>
+          <div id="key-test-feedback" class="text-center text-lg font-medium text-gray-500 h-8"></div>
         </div>
         
         <p class="mb-4 text-gray-600 text-center">Answer questions quickly and correctly to move your character forward.<br>First to the finish line wins!<br><span class="text-sm text-gray-500">A wrong answer costs a point and locks you out for a moment, so think first.</span></p>
@@ -437,7 +450,7 @@
       <div class="mt-6 flex flex-wrap justify-between gap-y-2 text-base text-gray-600 font-semibold">
         <div class="flex items-center gap-2">
           <span>Player 1:</span>
-          <span class="inline-flex gap-1">
+          <span id="p1-keys" class="inline-flex gap-1">
             <span class="border rounded bg-white px-2 py-1 shadow-sm font-mono">A</span>
             <span class="border rounded bg-white px-2 py-1 shadow-sm font-mono">S</span>
             <span class="border rounded bg-white px-2 py-1 shadow-sm font-mono">D</span>
@@ -451,7 +464,7 @@
         </div>
         <div class="flex items-center gap-2">
           <span>Player 2:</span>
-          <span class="inline-flex gap-1">
+          <span id="p2-keys" class="inline-flex gap-1">
             <span class="border rounded bg-white px-2 py-1 shadow-sm font-mono">J</span>
             <span class="border rounded bg-white px-2 py-1 shadow-sm font-mono">K</span>
             <span class="border rounded bg-white px-2 py-1 shadow-sm font-mono">L</span>
