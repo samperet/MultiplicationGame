@@ -236,13 +236,29 @@ function installHarness() {
   check('Start Game opens How to Play', await visible('#setup-step-keys'));
   check('each step starts scrolled to its top',
     await page.locator('#setup-card').evaluate(el => el.scrollTop === 0));
-  check('How to Play lists controller controls', await visible('#howto-gamepad-block'));
-  check('controller status says none connected',
-    (await text('#howto-gamepad-status')).includes('No controller yet'));
+  check('no controller section without a controller', !(await visible('#howto-gamepad-block')));
+  check('the test hint mentions only keys',
+    (await text('#key-test-instructions')) === 'Press A, S, D or J, K, L to see which answer it picks',
+    await text('#key-test-instructions'));
   await page.keyboard.press('s');
   await sleep(60);
   check('the key test answers a keyboard press',
-    (await text('#key-test-feedback')).startsWith('"S" picks'), await text('#key-test-feedback'));
+    (await text('#key-test-feedback')) === 'Player 1 · "S" picks 12', await text('#key-test-feedback'));
+  const p1Colours = await page.locator('#answer-option-2').evaluate(el => ({
+    player: el.dataset.player, bg: getComputedStyle(el).backgroundColor
+  }));
+  await page.keyboard.press('l');
+  await sleep(60);
+  check('a Player 2 press is attributed to Player 2',
+    (await text('#key-test-feedback')) === 'Player 2 · "L" picks 15', await text('#key-test-feedback'));
+  const p2Colours = await page.locator('#answer-option-3').evaluate(el => ({
+    player: el.dataset.player, bg: getComputedStyle(el).backgroundColor
+  }));
+  check('each player lights the answer in their own colour',
+    p1Colours.player === '1' && p2Colours.player === '2' && p1Colours.bg !== p2Colours.bg,
+    [p1Colours, p2Colours]);
+  const feedbackColours = await page.locator('#key-test-feedback').evaluate(el => getComputedStyle(el).color);
+  check('the feedback text carries that colour too', feedbackColours === 'rgb(79, 70, 229)', feedbackColours);
 
   // A controller wakes up with a button held down
   await keys();
@@ -252,8 +268,11 @@ function installHarness() {
   await page.evaluate(() => window.__press(0, 0, false));
   await frames(2);
   check('releasing the wake-up button emits nothing', (await keys()).length === 0);
+  check('the controller section appears once one is connected', await visible('#howto-gamepad-block'));
   check('controller counted on How to Play',
     (await text('#howto-gamepad-status')).includes('1 controller connected'));
+  check('the test hint now mentions controllers',
+    (await text('#key-test-instructions')).includes('button on a controller'));
   // One player on a controller: only that player's keyboard column goes away
   check("the controller player's keyboard column is hidden", !(await visible('#howto-keys-1')));
   check("the keyboard player's column stays", await visible('#howto-keys-2'));
@@ -262,7 +281,7 @@ function installHarness() {
     (await text('#answer-hint-1')) === '◀ / J', await text('#answer-hint-1'));
   await tap(0, 14);
   check('the key test answers a controller press',
-    (await text('#key-test-feedback')).startsWith('🎮 ◀ picks'), await text('#key-test-feedback'));
+    (await text('#key-test-feedback')) === 'Player 1 · 🎮 ◀ picks 10', await text('#key-test-feedback'));
   check('only the answer just picked is lit',
     await page.locator('.answer-flash').count() === 1,
     await page.locator('.answer-flash').count());

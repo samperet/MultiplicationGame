@@ -141,6 +141,16 @@
       transform: scale(1.08);
       box-shadow: 0 4px 12px rgba(0,0,0,0.12);
     }
+    .answer-flash[data-player="1"] {
+      background: #fbcfe8;
+      box-shadow: 0 4px 12px rgba(236,72,153,0.35);
+    }
+    .answer-flash[data-player="2"] {
+      background: #c7d2fe;
+      box-shadow: 0 4px 12px rgba(79,70,229,0.35);
+    }
+    #key-test-feedback[data-player="1"] { color: #db2777; }
+    #key-test-feedback[data-player="2"] { color: #4f46e5; }
 
     /* A player locked out after a wrong answer */
     .lane-locked {
@@ -317,7 +327,7 @@
         <!-- Interactive test area -->
         <div class="w-full bg-gradient-to-r from-pink-50 to-indigo-50 rounded-lg p-4 mb-6 shadow-sm">
           <h3 class="text-lg font-semibold text-gray-700 mb-2 text-center">Try It Now!</h3>
-          <p class="text-gray-600 text-center mb-3">Press a key, or a button on a controller, to see which answer it picks</p>
+          <p id="key-test-instructions" class="text-gray-600 text-center mb-3"></p>
           <div id="key-test-feedback" class="text-center text-lg font-medium text-gray-500 h-8"></div>
         </div>
         

@@ -959,15 +959,15 @@ function showKeyTest(key, fromGamepad) {
   const idx = keysFor(player).indexOf(key);
   const option = document.getElementById(`answer-option-${idx + 1}`);
   flash(document.getElementById(HOWTO_KEY_CAPS[player - 1][idx]), 'key-flash', '.key-button');
+  // The answer lights up in the colour of whoever pressed, and so does the text
+  if (option) option.dataset.player = String(player);
   flash(option, 'answer-flash', '[id^="answer-option-"]');
   const feedback = document.getElementById('key-test-feedback');
   if (feedback && option) {
-    const value = option.firstChild.textContent.trim();
-    feedback.textContent = fromGamepad
-      ? `🎮 ${GAMEPAD_ANSWER_LABELS[idx]} picks ${value}`
-      : `"${key.toUpperCase()}" picks ${value}`;
+    const control = fromGamepad ? `🎮 ${GAMEPAD_ANSWER_LABELS[idx]}` : `"${key.toUpperCase()}"`;
+    feedback.textContent = `Player ${player} · ${control} picks ${option.firstChild.textContent.trim()}`;
+    feedback.dataset.player = String(player);
     feedback.classList.remove('text-gray-500');
-    feedback.classList.add('text-blue-600');
   }
 }
 
@@ -1396,12 +1396,17 @@ function updateGamepadUI() {
       titleStatus.textContent = '🎮 2 controllers connected. Player 1 and Player 2 are ready!';
     }
   }
-  // How to Play screen
+  // How to Play: the controller section is only useful once one is connected
+  setHidden('howto-gamepad-block', count === 0);
   const howtoStatus = document.getElementById('howto-gamepad-status');
-  if (howtoStatus) {
-    howtoStatus.textContent = count === 0
-      ? 'No controller yet. Press any button on a Bluetooth controller to connect it.'
-      : `${count} controller${count > 1 ? 's' : ''} connected. Try the buttons below!`;
+  if (howtoStatus && count > 0) {
+    howtoStatus.textContent = `${count} controller${count > 1 ? 's' : ''} connected. Try the buttons below!`;
+  }
+  const testHint = document.getElementById('key-test-instructions');
+  if (testHint) {
+    testHint.textContent = count === 0
+      ? 'Press A, S, D or J, K, L to see which answer it picks'
+      : 'Press a key, or a button on a controller, to see which answer it picks';
   }
   // Character screen
   const padForStep = connected[setupStep - 1];
